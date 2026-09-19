@@ -98,25 +98,25 @@ Action 3: Finish[...]
 
 ## 实验流程
 在 `hotpotqa.ipynb` 中环境初始化：
-```json
+```python
 env = wikienv.WikiEnv() # 提供 search/lookup/finish 动作
 env = wrappers.HotPotQAWrapper(env, split="dev") # 把 HotpotQA 问题喂给环境，并负责评分
 env = wrappers.LoggingWrapper(env) # 记录轨迹
 ```
 
 每一题从这里开始：
-```json
+```python
 question = env.reset(idx=idx)
 prompt += question + "\n"
 ```
 `reset(idx=i)` 会取第 i 条 HotpotQA 数据，返回 `Question: ...`
 位置在 `wrappers.py`：
-```json
+```python
 observation = f"Question: {self.data[self.data_idx][0]}"
 ```
 
 然后进入最多 7 轮循环：
-```json
+```python
 for i in range(1, 8):
     thought_action = llm(prompt + f"Thought {i}:", stop=[f"\nObservation {i}:"])
 ```
@@ -132,18 +132,18 @@ Thought 1: I need to search the album first.
 Action 1: Search[Guitars for Wounded Warriors]
 ```
 然后代码解析出 action：
-```json
+```python
 thought, action = thought_action.strip().split(f"\nAction {i}: ")
 ```
 再交给环境执行：
-```json
+```python
 obs, r, done, info = step(env, action[0].lower() + action[1:])
 ```
 
 ### Search 是怎么工作的
 在 `wikienv.py` 中访问 Wikipedia 搜索页
 
-```json
+```python
 search_url = f"https://en.wikipedia.org/w/index.php?search={entity_}"
 response_text = requests.get(search_url).text
 soup = BeautifulSoup(response_text, features="html.parser")
@@ -166,14 +166,14 @@ lookup[keyword] 会在当前 Wikipedia 页面里找包含关键词的句子
 
 ### 评分
 当模型输出 `Finish[Richard Nixon]`，在 `wikienv.py` 中
-```
+```python
 self.answer = answer
 done = True
 ```
 然后 HotPotQAWrapper 会拿模型答案和标准答案比对
 
 评分在 `wrappers.py`：
-```json
+```python
 pred = normalize_answer(self.data[self.data_idx][1]) # 标准答案
 gt = normalize_answer(info['answer']) # 模型答案
 score = (pred == gt)
@@ -188,7 +188,7 @@ score = (pred == gt)
 ```
 
 最后在 `hotpotqa.ipynb` 中
-```json
+```python
 idxs = list(range(7405)) # HotpotQA dev 总共 7405 条
 random.Random(233).shuffle(idxs) # 用随机种子 233 打乱
 
@@ -199,3 +199,14 @@ for i in idxs[:500]:
 每跑完一题打印 `print(sum(rs), len(rs), sum(rs) / len(rs), avg_time)`
 分别是答对数量、已跑题数、当前 EM、平均每题耗时
 
+## Execution
+```bash
+conda create -n react python=3.9 -y
+pip install openai gym numpy requests beautifulsoup4 jupyter notebook
+conda activate react
+$env:OPENAI_API_KEY="sk-proj-..."
+```
+模型由源代码的 text-davinci-002 改成 gpt-4.1-mini
+```bash
+jupyter notebook hotpotqa_reprod.ipynb
+```
